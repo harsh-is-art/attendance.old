@@ -1,0 +1,186 @@
+{% extends "base.html" %}{% load static %}{% block title %}Take Attendance{% endblock %}{% block content %}
+<style>
+#barcodeVideo {
+  position: relative;
+  overflow: hidden;
+  background: #000;
+  min-height: 280px;
+}
+#barcodeVideo video {
+  width: 100%;
+  height: auto;
+  max-height: 420px;
+  object-fit: cover;
+  display: block;
+}
+#barcodeVideo canvas {
+  position: absolute !important;
+  inset: 0 !important;
+  width: 100% !important;
+  height: 100% !important;
+  opacity: 0 !important;
+  pointer-events: none;
+}
+.scan-guide {
+  position: absolute;
+  width: 260px;
+  height: 260px;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  border: 4px solid #16a34a;
+  border-radius: 14px;
+  box-shadow: 0 0 0 9999px rgba(0,0,0,.08), 0 0 18px rgba(22,163,74,.65);
+  z-index: 10;
+  pointer-events: none;
+  transition: border-color 0.25s ease, box-shadow 0.25s ease;
+}
+.scan-guide.scan-success {
+  border-color: #22c55e !important;
+  box-shadow: 0 0 0 9999px rgba(34,197,94,.18), 0 0 35px #22c55e !important;
+  animation: scanPulseGreen 0.6s ease;
+}
+.scan-guide.scan-error {
+  border-color: #ef4444 !important;
+  box-shadow: 0 0 0 9999px rgba(239,68,68,.18), 0 0 35px #ef4444 !important;
+  animation: scanShakeRed 0.5s ease;
+}
+@keyframes scanPulseGreen {
+  0% { transform: translate(-50%, -50%) scale(1); }
+  50% { transform: translate(-50%, -50%) scale(1.06); }
+  100% { transform: translate(-50%, -50%) scale(1); }
+}
+@keyframes scanShakeRed {
+  0%, 100% { transform: translate(-50%, -50%); }
+  20%, 60% { transform: translate(-54%, -50%); }
+  40%, 80% { transform: translate(-46%, -50%); }
+}
+.scan-guide span {
+  position: absolute;
+  left: 50%;
+  bottom: -34px;
+  transform: translateX(-50%);
+  white-space: nowrap;
+  background: rgba(0,0,0,.72);
+  color: #fff;
+  padding: 6px 10px;
+  border-radius: 6px;
+  font-size: 13px;
+}
+#network.online {
+  background: #e2f4e5;
+  color: #2e7d32;
+}
+#network.offline {
+  background: #fde2e2;
+  color: #c62828;
+}
+</style>
+<div class="head">
+  <div>
+    <h2>{{lecture.subject}}</h2>
+    <p>{{lecture.section.course}} • {% if lecture.is_combined %}Sections {{lecture.sections_names}} (Combined){% else %}Section {{lecture.section.name}}{% endif %} • {{lecture.start_time|time:"H:i"}} - {{lecture.end_time|time:"H:i"}}</p>
+  </div>
+  <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+    <a href="{% url 'attendance_export' %}?lecture={{lecture.id}}" class="btn secondary" style="font-size:13px;padding:6px 12px;text-decoration:none;display:inline-flex;align-items:center;gap:4px">📊 Export Excel</a>
+    <span id="syncBadge" class="status" style="display:none;background:#ecfdf5;color:#047857;border:1px solid #a7f3d0;font-weight:600">✓ Synced</span>
+    <span id="network" class="status">Checking...</span>
+  </div>
+</div>
+<div class="stats">
+  <div><b id="present">0</b><small>Present</small></div>
+  <div><b id="absent">0</b><small>Absent</small></div>
+  <div><b id="total">0</b><small>Total</small></div>
+</div>
+<section class="panel">
+  <h3>Scan Student ID Card</h3>
+  <p>Align the student ID <b>QR code or barcode within the scanner</b>. Scanning marks the student <b>PRESENT</b>.</p>
+  <div id="barcodeVideo"></div>
+  <div class="actions">
+    <button id="start" class="btn">Start Camera</button>
+    <button id="flashToggle" class="btn secondary" style="display:none;">⚡ Flash OFF</button>
+    <button id="stop" class="btn secondary">Stop</button>
+    <button id="sync" class="btn">Sync Attendance</button>
+  </div>
+  <div id="message" class="scan">Ready.</div>
+</section>
+<section class="panel">
+  <h3>Manual Entry</h3>
+  <div class="row">
+    <input id="manual" placeholder="Enrollment No.">
+    <button id="manualBtn" class="btn">Mark Present</button>
+  </div>
+</section>
+
+{% if lecture.is_combined %}
+<div id="sectionFilterBar" class="section-filter-bar">
+  <span style="font-weight:600;font-size:13px;color:#64748b">Filter Section:</span>
+  <button class="sec-filter-btn active" data-sec="ALL">All Combined ({{ lecture.sections.count }} Sections)</button>
+  {% for s in lecture.sections.all %}
+  <button class="sec-filter-btn" data-sec="{{ s.name }}">Section {{ s.name }}</button>
+  {% endfor %}
+</div>
+{% endif %}
+
+<div class="actions">
+  <button id="allPresent" class="btn secondary">Mark All Present</button>
+  <button id="allAbsent" class="btn secondary">Mark All Absent</button>
+</div>
+<div id="students" class="list"></div>
+
+<!-- Sync Confirmation Modal -->
+<div id="syncModal" class="modal-overlay" style="display:none">
+  <div class="modal-card">
+    <div class="modal-icon-wrap">
+      <div class="modal-check-circle">✓</div>
+    </div>
+    <h3 class="modal-title">Attendance Synced Successfully</h3>
+    <p class="modal-desc" id="modalDesc">All attendance records have been synchronized with the server.</p>
+    
+    <div class="modal-stats-grid">
+      <div class="modal-stat-box">
+        <span class="modal-stat-val" id="modalTotal">0</span>
+        <span class="modal-stat-lbl">Total Students</span>
+      </div>
+      <div class="modal-stat-box" style="border-left:2px solid #22c55e">
+        <span class="modal-stat-val" style="color:#16a34a" id="modalPresent">0</span>
+        <span class="modal-stat-lbl">Present</span>
+      </div>
+      <div class="modal-stat-box" style="border-left:2px solid #ef4444">
+        <span class="modal-stat-val" style="color:#dc2626" id="modalAbsent">0</span>
+        <span class="modal-stat-lbl">Absent</span>
+      </div>
+    </div>
+
+    <div class="modal-meta-box">
+      <div><b>Lecture:</b> <span id="modalSubject">{{ lecture.subject }}</span></div>
+      <div><b>Sections:</b> <span id="modalSections">{% if lecture.is_combined %}Sections {{ lecture.sections_names }} (Combined){% else %}Section {{ lecture.section.name }}{% endif %}</span></div>
+      <div><b>Synced At:</b> <span id="modalSyncTime">Just now</span></div>
+    </div>
+
+    <div class="modal-actions" style="margin-top:20px">
+      <button id="modalCloseBtn" class="btn" style="width:100%;padding:12px;font-size:15px">OK, Done</button>
+    </div>
+  </div>
+</div>
+
+<script>
+window.CFG={
+  lectureId: {{lecture.id}},
+  startTime: "{{lecture.start_time|time:'H:i'}}",
+  endTime: "{{lecture.end_time|time:'H:i'}}",
+  sectionName: "{% if lecture.is_combined %}{{ lecture.sections_names }}{% else %}{{ lecture.section.name }}{% endif %}",
+  sections: [{% for s in lecture.sections.all %}"{{ s.name }}"{% if not forloop.last %}, {% endif %}{% endfor %}],
+  isCombined: {% if lecture.is_combined %}true{% else %}false{% endif %},
+  subject: "{{ lecture.subject|escapejs }}",
+  course: "{{ lecture.section.course|escapejs }}",
+  bootstrapUrl: "{% url 'api_bootstrap' %}?lecture_id={{ lecture.id }}",
+  syncUrl: "{% url 'api_bulk_sync' %}",
+  markUrl: "{% url 'api_mark_attendance' %}",
+  preloadedStudents: {{ preloaded_roster_json|default:"[]"|safe }}
+};
+</script>
+<script src="{% static 'js/quagga.min.js' %}"></script>
+<script src="{% static 'js/barcode-scanner.js' %}"></script>
+<script src="{% static 'js/attendance.js' %}"></script>
+{% endblock %}

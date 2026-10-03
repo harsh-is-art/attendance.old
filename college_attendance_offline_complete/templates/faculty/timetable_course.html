@@ -1,0 +1,17 @@
+{% extends "base.html" %}
+{% block title %}Select Course{% endblock %}
+{% block content %}
+<div class="head"><div><h2>Select Course</h2><p>First select the course from the chosen timetable entry.</p></div><a class="btn secondary" href="{% url 'timetable' %}">Back to Timetable</a></div>
+<section class="panel">
+  <h3>{{ entry.date }} • {{ entry.day }} • {{ entry.time_slot }}</h3>
+  {% if course_available %}
+  <div class="panel" style="max-width:420px;border:1px solid #dbe3ef;margin-top:16px">
+    <h2 style="margin-bottom:8px">{{ course }}</h2>
+    <p>Section group: <b>{{ entry.section_group }}</b></p>
+    <a class="btn" href="{% url 'timetable_entry' entry_index %}">Select {{ course }}</a>
+  </div>
+  {% else %}
+  <div class="scan">No course is assigned to this timetable entry, so attendance cannot be started.</div>
+  {% endif %}
+</section>
+{% endblock %}

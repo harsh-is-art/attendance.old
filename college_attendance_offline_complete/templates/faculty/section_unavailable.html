@@ -1,0 +1,10 @@
+{% extends "base.html" %}
+{% block title %}Section Data Unavailable{% endblock %}
+{% block content %}
+<section class="panel" style="max-width:720px;margin:40px auto">
+  <h2>Section {{ section_name }} is not available</h2>
+  <p>{{ error|default:"No student roster was found for this course and section." }}</p>
+  <p><b>Course:</b> {{ course }} &nbsp; <b>Section:</b> {{ section_name }}</p>
+  <div class="actions"><a class="btn" href="{% url 'timetable_entry' entry_index %}">Back to Sections</a><a class="btn secondary" href="{% url 'timetable' %}">Back to Timetable</a></div>
+</section>
+{% endblock %}

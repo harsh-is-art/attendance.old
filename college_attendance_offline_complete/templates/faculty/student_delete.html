@@ -1,0 +1,1 @@
+{% extends 'base.html' %}{% block content %}<div class='panel form'><h2>Deactivate Student</h2><p>Deactivate <b>{{student.enrollment_no}} - {{student.name}}</b>?</p><form method='post'>{% csrf_token %}<button class='btn danger'>Yes, Deactivate</button> <a class='btn secondary' href='/faculty/students/'>Cancel</a></form></div>{% endblock %}

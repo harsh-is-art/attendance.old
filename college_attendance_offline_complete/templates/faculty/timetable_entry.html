@@ -1,0 +1,39 @@
+{% extends "base.html" %}
+{% block title %}Select Section{% endblock %}
+{% block content %}
+<div class="head"><div><h2>{{ course }} — Select Section</h2><p>{{ entry.date }} • {{ entry.day }} • {{ entry.time_slot }} • {{ entry.resource_person|default:"" }}</p></div><a class="btn secondary" href="{% url 'timetable_course' entry_index %}">Back to Course</a></div>
+<section class="panel">
+  <h3>Section Group: {{ entry.section_group }}</h3>
+  <p>You can take combined attendance for all sections together, or select a specific section individually.</p>
+  
+  {% if is_multiple_sections %}
+  <div class="panel" style="background:#fff1f2;border:2px solid #e7000b;margin-bottom:20px;border-radius:10px">
+    <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:14px">
+      <div>
+        <h3 style="margin:0 0 6px;color:#e7000b;font-size:18px">All Combined Sections ({{ entry.section_group }})</h3>
+        <p style="margin:0;color:#64748b">Combined roster with <b>{{ total_combined_students }} students total</b> across sections {% for s in available_sections %}{% if s.available %}{{ s.name }}{% if not forloop.last %}, {% endif %}{% endif %}{% endfor %}.</p>
+      </div>
+      <a class="btn" style="background:#e7000b;color:#fff;padding:10px 20px;font-size:15px;font-weight:600" href="{% url 'timetable_start_attendance' entry_index 'all' %}">Take Combined Attendance</a>
+    </div>
+  </div>
+  {% endif %}
+
+  <h4 style="margin:16px 0 10px;color:#172033;font-size:15px">Or Select an Individual Section:</h4>
+  <div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:14px">
+    {% for s in available_sections %}
+    <div class="panel" style="border:1px solid #dbe3ef">
+      <h3>Section {{ s.name }}</h3>
+      <p>{{ s.student_count }} students</p>
+      {% if s.available %}
+      <a class="btn secondary" href="{% url 'timetable_start_attendance' entry_index s.name %}">Take Section {{ s.name }} Attendance</a>
+      {% else %}
+      <button class="btn secondary" disabled>No student data</button>
+      <p style="color:#b45309;margin-top:8px">No student roster found for this section.</p>
+      {% endif %}
+    </div>
+    {% empty %}
+    <div class="scan">No sections are listed for this timetable entry.</div>
+    {% endfor %}
+  </div>
+</section>
+{% endblock %}
