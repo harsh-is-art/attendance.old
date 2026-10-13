@@ -11,9 +11,15 @@ CSRF_TRUSTED_ORIGINS = [
     "https://attendance-old.onrender.com",
 ]
 INSTALLED_APPS=["django.contrib.admin","django.contrib.auth","django.contrib.contenttypes","django.contrib.sessions","django.contrib.messages","django.contrib.staticfiles","rest_framework","attendance"]
+try:
+    import whitenoise
+    HAS_WHITENOISE = True
+except ImportError:
+    HAS_WHITENOISE = False
+
 MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",
-    "whitenoise.middleware.WhiteNoiseMiddleware",
+    *(["whitenoise.middleware.WhiteNoiseMiddleware"] if HAS_WHITENOISE else []),
     "django.contrib.sessions.middleware.SessionMiddleware",
     "django.middleware.common.CommonMiddleware",
     "django.middleware.csrf.CsrfViewMiddleware",
@@ -59,7 +65,11 @@ STORAGES = {
         "BACKEND": "django.core.files.storage.FileSystemStorage",
     },
     "staticfiles": {
-        "BACKEND": "whitenoise.storage.CompressedManifestStaticFilesStorage",
+        "BACKEND": (
+            "whitenoise.storage.CompressedManifestStaticFilesStorage"
+            if HAS_WHITENOISE
+            else "django.contrib.staticfiles.storage.StaticFilesStorage"
+        ),
     },
 }
 DEFAULT_AUTO_FIELD="django.db.models.BigAutoField"
